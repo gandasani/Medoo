@@ -2,9 +2,9 @@
 /*!
  * Medoo database framework
  * http://medoo.in
- * Version 1.0.1
+ * Version 0.9.8.3
  *
- * Copyright 2016, Angel Lai
+ * Copyright 2015, Angel Lai
  * Released under the MIT license
  */
 class medoo
@@ -45,18 +45,24 @@ class medoo
 	{
 		try {
 			$commands = array();
-			$dsn = '';
 
-			if (is_array($options))
+			if (is_string($options) && !empty($options))
+			{
+				if (strtolower($this->database_type) == 'sqlite')
+				{
+					$this->database_file = $options;
+				}
+				else
+				{
+					$this->database_name = $options;
+				}
+			}
+			elseif (is_array($options))
 			{
 				foreach ($options as $option => $value)
 				{
 					$this->$option = $value;
 				}
-			}
-			else
-			{
-				return false;
 			}
 
 			if (
@@ -190,7 +196,7 @@ class medoo
 
 	protected function column_quote($string)
 	{
-		return '"' . $this->prefix . str_replace('.', '"."', preg_replace('/(^#|\(JSON\)\s*)/', '', $string)) . '"';
+		return '"' . str_replace('.', '"."', preg_replace('/(^#|\(JSON\)\s*)/', '', $string)) . '"';
 	}
 
 	protected function column_push($columns)
@@ -332,35 +338,27 @@ class medoo
 
 					if ($operator == '~' || $operator == '!~')
 					{
-						if ($type != 'array')
+						if ($type == 'string')
 						{
 							$value = array($value);
 						}
 
-						$like_clauses = array();
-
-						foreach ($value as $item)
+						if (!empty($value))
 						{
-							$item = strval($item);
-							$suffix = mb_substr($item, -1, 1);
+							$like_clauses = array();
 
-							if ($suffix === '_')
+							foreach ($value as $item)
 							{
-								$item = substr_replace($item, '%', -1);
-							}
-							elseif ($suffix === '%')
-							{
-								$item = '%' . substr_replace($item, '', -1, 1);
-							}
-							elseif (preg_match('/^(?!%).+(?<!%)$/', $item))
-							{
-								$item = '%' . $item . '%';
+								if (preg_match('/^(?!%).+(?<!%)$/', $item))
+								{
+									$item = '%' . $item . '%';
+								}
+
+								$like_clauses[] = $column . ($operator === '!~' ? ' NOT' : '') . ' LIKE ' . $this->fn_quote($key, $item);
 							}
 
-							$like_clauses[] = $column . ($operator === '!~' ? ' NOT' : '') . ' LIKE ' . $this->fn_quote($key, $item);
+							$wheres[] = implode(' OR ', $like_clauses);
 						}
-
-						$wheres[] = implode(' OR ', $like_clauses);
 					}
 
 					if (in_array($operator, array('>', '>=', '<', '<=')))
@@ -411,14 +409,14 @@ class medoo
 		return implode($conjunctor . ' ', $wheres);
 	}
 
-	protected function where_clause($where)
+	protected function where_clause($where, $join_where = false)
 	{
 		$where_clause = '';
 
 		if (is_array($where))
 		{
 			$where_keys = array_keys($where);
-			$where_AND = preg_grep("/^AND\s*#?$/i", $where_keys);
+            $where_AND = preg_grep("/^AND\s*#?$/i", $where_keys);
 			$where_OR = preg_grep("/^OR\s*#?$/i", $where_keys);
 
 			$single_condition = array_diff_key($where, array_flip(
@@ -426,24 +424,53 @@ class medoo
 			));
 
 			if ($single_condition != array())
-			{
-				$condition = $this->data_implode($single_condition, '');
-
-				if ($condition != '')
-				{
-					$where_clause = ' WHERE ' . $condition;
-				}
+			{				
+                if($join_where){
+                    foreach($single_condition as $sc => $val){
+                        $single_con[$this->prefix.$sc] = $val;
+                                                     
+                    }                                             
+                    $where_clause = ' WHERE ' . $this->data_implode($single_con, '');
+                } else {
+                    $where_clause = ' WHERE ' . $this->data_implode($single_condition, '');
+                          
+                }             
 			}
 
 			if (!empty($where_AND))
 			{
-				$value = array_values($where_AND);
+				$value = array_values($where_AND);  
+                
+                $before_wheres = $where[$value[ 0 ]];
+                foreach($before_wheres as $before_where => $before_where_value){
+                    if (strpos($before_where,'.') >= 1) {
+                        $before_where_joined[$this->prefix.$before_where] = $before_where_value;
+                    } else {
+                        $before_where_joined[$before_where] = $before_where_value;
+                    }
+                    
+                }
+                $where[$value[ 0 ]] = $before_where_joined;
+                              
 				$where_clause = ' WHERE ' . $this->data_implode($where[ $value[ 0 ] ], ' AND');
+                
 			}
 
 			if (!empty($where_OR))
 			{
 				$value = array_values($where_OR);
+                
+                $before_wheres = $where[$value[ 0 ]];
+                foreach($before_wheres as $before_where => $before_where_value){
+                    if (strpos($before_where,'.') >= 1) {
+                        $before_where_joined[$this->prefix.$before_where] = $before_where_value;
+                    } else {
+                        $before_where_joined[$before_where] = $before_where_value;
+                    }
+                    
+                }
+                $where[$value[ 0 ]] = $before_where_joined;
+                
 				$where_clause = ' WHERE ' . $this->data_implode($where[ $value[ 0 ] ], ' OR');
 			}
 
@@ -558,7 +585,9 @@ class medoo
 				'<>' => 'FULL',
 				'><' => 'INNER'
 			);
-
+            
+            $use_join_table = true;
+            
 			foreach($join as $sub_table => $relation)
 			{
 				preg_match('/(\[(\<|\>|\>\<|\<\>)\])?([a-zA-Z0-9_\-]*)\s?(\(([a-zA-Z0-9_\-]*)\))?/', $sub_table, $match);
@@ -583,7 +612,7 @@ class medoo
 
 							foreach ($relation as $key => $value)
 							{
-								$joins[] = $this->prefix . (
+								$joins[] = (
 									strpos($key, '.') > 0 ?
 										// For ['tableB.column' => 'column']
 										'"' . str_replace('.', '"."', $key) . '"' :
@@ -592,7 +621,7 @@ class medoo
 										$table . '."' . $key . '"'
 								) .
 								' = ' .
-								'"' . (isset($match[ 5 ]) ? $match[ 5 ] : $match[ 3 ]) . '"."' . $value . '"';
+								'"' . (isset($match[ 5 ]) ? $match[ 5 ] : $this->prefix.$match[ 3 ]) . '"."' . $value . '"';
 							}
 
 							$relation = 'ON ' . implode($joins, ' AND ');
@@ -662,10 +691,19 @@ class medoo
 		}
 		else
 		{
-			$column = $this->column_push($columns);
-		}
+    			if (isset($join_key[ 0 ]) && strpos($join_key[ 0 ], '[') === 0){
+                    $where_join = true;
+                    foreach ($columns as $column){
+        			     $columns_wp[] = $this->prefix.$column;
+        			}
+                    $column = $this->column_push($columns_wp);
+        		} else {
+        		    $where_join = false;
+	                $column = $this->column_push($columns);
+        		}
+			}
 
-		return 'SELECT ' . $column . ' FROM ' . $table . $this->where_clause($where);
+		return 'SELECT ' . $column . ' FROM ' . $table . $this->where_clause($where, $where_join);
 	}
 
 	public function select($table, $join, $columns = null, $where = null)
@@ -860,14 +898,7 @@ class medoo
 
 		$query = $this->query('SELECT EXISTS(' . $this->select_context($table, $join, $column, $where, 1) . ')');
 
-		if ($query)
-		{
-			return $query->fetchColumn() === '1';
-		}
-		else
-		{
-			require false;
-		}
+		return $query ? $query->fetchColumn() === '1' : false;
 	}
 
 	public function count($table, $join = null, $column = null, $where = null)
