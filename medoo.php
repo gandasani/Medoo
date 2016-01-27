@@ -443,16 +443,15 @@ class medoo
                 
                 $before_wheres = $where[$value[ 0 ]];
                 foreach($before_wheres as $before_where => $before_where_value){
-                    if (strpos($before_where,'.') >= 1) {
+                    if (strpos($before_where, '.') >= 1) {
                         $before_where_joined[$this->prefix.$before_where] = $before_where_value;
                     } else {
                         $before_where_joined[$before_where] = $before_where_value;
                     }
                     
                 }
-                $where[$value[ 0 ]] = $before_where_joined;
                               
-				$where_clause = ' WHERE ' . $this->data_implode($where[ $value[ 0 ] ], ' AND');
+				$where_clause = ' WHERE ' . $this->data_implode($before_where_joined, ' AND');
                 
 			}
 
@@ -462,16 +461,15 @@ class medoo
                 
                 $before_wheres = $where[$value[ 0 ]];
                 foreach($before_wheres as $before_where => $before_where_value){
-                    if (strpos($before_where,'.') >= 1) {
+                    if (strpos($before_where, '.') >= 1) {
                         $before_where_joined[$this->prefix.$before_where] = $before_where_value;
                     } else {
                         $before_where_joined[$before_where] = $before_where_value;
                     }
                     
                 }
-                $where[$value[ 0 ]] = $before_where_joined;
                 
-				$where_clause = ' WHERE ' . $this->data_implode($where[ $value[ 0 ] ], ' OR');
+				$where_clause = ' WHERE ' . $this->data_implode($before_where_joined, ' OR');
 			}
 
 			if (isset($where[ 'MATCH' ]))
@@ -525,6 +523,10 @@ class medoo
 				else
 				{
 					preg_match($rsort, $ORDER, $order_match);
+                    
+                    if (strpos($order_match[ 1 ], '.') >= 1) {
+                        $order_match[ 1 ] = $this->prefix.$order_match[ 1 ];
+                    }
 
 					$where_clause .= ' ORDER BY "' . str_replace('.', '"."', $order_match[ 1 ]) . '"' . (isset($order_match[ 3 ]) ? ' ' . $order_match[ 3 ] : '');
 				}
@@ -976,6 +978,26 @@ class medoo
 			return false;
 		}
 	}
+    
+    public function incerase($table = null, $columns = [], $where = []){
+        $get_value = $this->get($table, $columns, $where);
+        foreach($columns as $column){
+            $new_value = $get_value[$column] + 1;
+            $this->update($table, [ $column => $new_value ], $where );
+            $new_column_value[$column] = $new_value;
+        }
+        return $new_column_value;
+    }
+    
+    public function decrease($table = null, $columns = [], $where = []){
+        $get_value = $this->get($table, $columns, $where);
+        foreach($columns as $column){
+            $new_value = $get_value[$column] - 1;
+            $this->update($table, [ $column => $new_value ], $where );
+            $new_column_value[$column] = $new_value;
+        }
+        return $new_column_value;
+    }
 
 	public function debug()
 	{
@@ -1017,4 +1039,5 @@ class medoo
 		return $output;
 	}
 }
+
 ?>
