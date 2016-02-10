@@ -5,6 +5,7 @@
  * Version 0.9.8.3
  *
  * Copyright 2015, Angel Lai
+ * edited by ganda
  * Released under the MIT license
  */
 class medoo
@@ -444,14 +445,14 @@ class medoo
                 $before_wheres = $where[$value[ 0 ]];
                 foreach($before_wheres as $before_where => $before_where_value){
                     if (strpos($before_where, '.') >= 1) {
-                        $before_where_joined[$this->prefix.$before_where] = $before_where_value;
+                        $cons_where[$this->prefix.$before_where] = $before_where_value;
                     } else {
-                        $before_where_joined[$before_where] = $before_where_value;
+                        $cons_where[$before_where] = $before_where_value;
                     }
                     
                 }
                               
-				$where_clause = ' WHERE ' . $this->data_implode($before_where_joined, ' AND');
+				$where_clause = ' WHERE ' . $this->data_implode($cons_where, ' AND');
                 
 			}
 
@@ -462,14 +463,14 @@ class medoo
                 $before_wheres = $where[$value[ 0 ]];
                 foreach($before_wheres as $before_where => $before_where_value){
                     if (strpos($before_where, '.') >= 1) {
-                        $before_where_joined[$this->prefix.$before_where] = $before_where_value;
+                        $cons_where[$this->prefix.$before_where] = $before_where_value;
                     } else {
-                        $before_where_joined[$before_where] = $before_where_value;
+                        $cons_where[$before_where] = $before_where_value;
                     }
                     
                 }
                 
-				$where_clause = ' WHERE ' . $this->data_implode($before_where_joined, ' OR');
+				$where_clause = ' WHERE ' . $this->data_implode($cons_where, ' OR');
 			}
 
 			if (isset($where[ 'MATCH' ]))
